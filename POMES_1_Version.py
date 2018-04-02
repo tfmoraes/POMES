@@ -18,35 +18,25 @@ from slider_text import SliderText
 wildcard = "(*.stl)|*.stl"
 
 def to_vtk(n_array, spacing):
-    #print "arrray", n_array
-    try:
-        dz, dy, dx = n_array.shape
-    except ValueError:
-        dy, dx = n_array.shape
-        dz = 1
-    n_array.shape = dx * dy * dz
+   dz, dy, dx = n_array.shape
+   n_array.shape = dx * dy * dz
 
+   v_image = numpy_support.numpy_to_vtk(n_array)
 
-    v_image = numpy_support.numpy_to_vtk(n_array)
+   # Generating the vtkImageData
+   image = vtk.vtkImageData()
+   image.SetOrigin(0, 0, 0)
+   image.SetDimensions(dx, dy, dz)
+   image.SetSpacing(spacing)
+   image.SetExtent(0, dx -1, 0, dy -1, 0, dz - 1)
+   image.AllocateScalars(numpy_support.get_vtk_array_type(n_array.dtype), 1)
+   image.GetPointData().SetScalars(v_image)
 
-    # Generating the vtkImageData
-    image = vtk.vtkImageData()
-    image.SetDimensions(dx, dy, dz)
-    image.SetOrigin(0, 0, 0)
-    image.SetSpacing(spacing)
-    image.SetNumberOfScalarComponents(1)
-    image.SetExtent(0, dx -1, 0, dy -1, 0, dz - 1)
-    image.SetScalarType(numpy_support.get_vtk_array_type(n_array.dtype))
-    image.AllocateScalars()
-    image.GetPointData().SetScalars(v_image)
-    image.Update()
+   image_copy = vtk.vtkImageData()
+   image_copy.DeepCopy(image)
 
-    image_copy = vtk.vtkImageData()
-    image_copy.DeepCopy(image)
-    image_copy.Update()
-
-    n_array.shape = dz, dy, dx
-    return image_copy
+   n_array.shape = dz, dy, dx 
+   return image_copy
 
 
 def pontos(polydata):
@@ -142,14 +132,14 @@ def desenhar_surface_above_bone(type_surface,elem_size,normals,malha, points,esp
     image=to_vtk(M,spacing)
 
     surf=vtk.vtkMarchingCubes()
-    surf.SetInput(image)
+    surf.SetInputData(image)
     surf.SetValue(0,-0.1)
     surf.SetValue(1,0.1)
     surf.Update()
     
     d = vtk.vtkDecimatePro()
     d.SetTargetReduction(0.7)
-    d.SetInput(surf.GetOutput())
+    d.SetInputData(surf.GetOutput())
     d.Update()
     
     surf = d
@@ -203,10 +193,12 @@ def desenhar_surface_above_bone(type_surface,elem_size,normals,malha, points,esp
         surrf1.RotateWXYZ(anglez, axez[0], axez[1], axez[2])
         surrf1.Translate(x, y, z)
         surr2=vtk.vtkTransformFilter()
-        surr2.SetInput(surf.GetOutput())
+        surr2.SetInputData(surf.GetOutput())
         surr2.SetTransform(surrf1)
+        surr2.Update()
 
-        app_polidata.AddInput(surr2.GetOutput())
+        app_polidata.AddInputData(surr2.GetOutput())
+    app_polidata.Update()
     return app_polidata
 
 
@@ -406,7 +398,7 @@ class VisaoFrontal(wx.Panel):
         estruturas = desenhar_surface_above_bone(type_surface, elem , self.normalsp, self.vertices, self.id_points,espessura)
 
         mapper_estrutura = vtk.vtkPolyDataMapper()
-        mapper_estrutura.SetInput(estruturas.GetOutput())
+        mapper_estrutura.SetInputData(estruturas.GetOutput())
 
         actor_estrutura = vtk.vtkActor()
         actor_estrutura.SetMapper(mapper_estrutura)
@@ -441,7 +433,7 @@ class VisaoFrontal(wx.Panel):
         app_polidata.Update()
 
         write = vtk.vtkSTLWriter()
-        write.SetInput(app_polidata.GetOutput())
+        write.SetInputData(app_polidata.GetOutput())
         write.SetFileTypeToBinary()
         write.SetFileName(path)
         write.Write()
@@ -462,7 +454,7 @@ class VisaoFrontal(wx.Panel):
 
         normals = vtk.vtkPolyDataNormals()
         #normals.SetInput(polydata)
-        normals.SetInput(mesh.GetOutput())
+        normals.SetInputData(mesh.GetOutput())
         normals.ComputeCellNormalsOn()
         normals.Update()
 
@@ -516,22 +508,22 @@ class VisaoFrontal(wx.Panel):
             # Generate ids for labeling
 
             ids = vtk.vtkIdFilter()
-            ids.SetInput(self.polydata)
+            ids.SetInputData(self.polydata)
             ids.PointIdsOn()
             ids.CellIdsOn()
             ids.FieldDataOn()
+            ids.Update()
 
             s = vtk.vtkSelectVisiblePoints()
             s.SetRenderer(self.renderer)
-            s.SetInput(ids.GetOutput())
+            s.SetInputData(ids.GetOutput())
             s.SelectionWindowOn()
             s.SetSelection(xmin, xmax, ymin, ymax)
             s.SelectInvisibleOff()
             s.Update()
 
-
             id_points = numpy_support.vtk_to_numpy(s.GetOutput().GetPointData().GetAbstractArray("vtkIdFilter_Ids"))
-
+            print id_points
             self.id_points.update(id_points.tolist())
         else:
             obj.EndRotate()
