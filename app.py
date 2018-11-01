@@ -428,8 +428,8 @@ class VisaoFrontal(wx.Panel):
     def gravar_Modelo_stl(self, path):
 
         app_polidata = vtk.vtkAppendPolyData()
-        app_polidata.AddInput(self.polydata)
-        app_polidata.AddInput(self.estruturas.GetOutput())
+        app_polidata.AddInputData(self.polydata)
+        app_polidata.AddInputData(self.estruturas.GetOutput())
         app_polidata.Update()
 
         write = vtk.vtkSTLWriter()
